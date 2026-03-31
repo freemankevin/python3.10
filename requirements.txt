@@ -1,0 +1,14 @@
+fastapi==0.115.12
+uvicorn==0.34.0
+gunicorn==23.0.0
+pydantic==2.9.2
+pydantic_settings==2.5.2
+toml==0.10.2
+colorlog==6.8.2
+psycopg2-binary==2.9.9
+python-multipart==0.0.20
+langchain==0.3.25
+langchain_community==0.3.24
+langchain_openai==0.3.28
+langchain_core==0.3.70
+aiohttp>=3.9.0
