@@ -1,0 +1,104 @@
+# =============================================================================
+# GitHub Actions - 构建并推送 Python 基础镜像到 GitHub Container Registry
+# 触发条件：手动触发 或 base.Dockerfile 文件变更
+# =============================================================================
+
+name: Build Python Base Image
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: 'Python version tag'
+        required: true
+        default: '3.10'
+        type: string
+  
+  # 当基础镜像文件变更时自动触发
+  push:
+    paths:
+      - 'docker/base.Dockerfile'
+    branches:
+      - main
+      - master
+      - develop
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/python-base
+
+jobs:
+  build-base-image:
+    name: Build and Push Base Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      # =========================================================================
+      # Step 1: Checkout code
+      # =========================================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      # =========================================================================
+      # Step 2: Set up QEMU for multi-platform builds
+      # =========================================================================
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      # =========================================================================
+      # Step 3: Set up Docker Buildx
+      # =========================================================================
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # =========================================================================
+      # Step 4: Login to GitHub Container Registry
+      # =========================================================================
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # =========================================================================
+      # Step 5: Extract metadata (tags and labels)
+      # =========================================================================
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ inputs.python_version || '3.10' }},priority=100
+            type=raw,value=${{ inputs.python_version || '3.10' }}-${{ github.run_number }},priority=90
+            type=raw,value=latest,priority=80
+      
+      # =========================================================================
+      # Step 6: Build and push base image (multi-platform)
+      # =========================================================================
+      - name: Build and push base image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/base.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          platforms: linux/amd64,linux/arm64
+      
+      # =========================================================================
+      # Step 7: Output image info
+      # =========================================================================
+      - name: Output image info
+        run: |
+          echo "✅ Base image built successfully!"
+          echo "   Registry: ${{ env.REGISTRY }}"
+          echo "   Image: ${{ env.IMAGE_NAME }}"
+          echo "   Tags: ${{ steps.meta.outputs.tags }}"
